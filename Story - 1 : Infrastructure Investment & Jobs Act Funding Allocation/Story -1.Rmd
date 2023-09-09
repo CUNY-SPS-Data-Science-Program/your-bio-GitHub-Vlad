@@ -1,0 +1,108 @@
+---
+title: "Story - 1 : Infrastructure Investment & Jobs Act Funding Allocation"
+author: "Vladimir Nimchenko"
+date: "2023-09-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Introduction: In my assignment, I was given an excel data set on the present allocation of the Infrastructure Investment and Jobs Act funding by State and Territory.I will need to create visualizations which most accurately answer the following questions: 1).Is the allocation equitable based on the population of each of the States and Territories, or is bias apparent? 2).Does the allocation favor the political interests of the Biden administration? In order to answer these questions, I gathered two data sets. The first one displays population by state from Kaggle called: "us_pop_by_state.csv". The second one displays the 2020 election results from the presidential election of 2020 by state. See the links below:
+
+<https://www.kaggle.com/datasets/alexandrepetit881234/us-population-by-state?resource=download>
+
+<https://www.kaggle.com/datasets/callummacpherson14/2020-us-presidential-election-results-by-state?select=voting.csv>
+
+Load each of the three data sets from Github to a Data frame respectively. Afterwards clean data in each of the data frames as needed and join all three data frames.
+
+```{r}
+
+library(stringr)
+#Load the "IUA FUNDING AS OF MARCH 2023" file from Github to data frame. 
+IUA_Funding <- read.csv("https://raw.githubusercontent.com/CUNY-SPS-Data-Science-Program/your-bio-GitHub-Vlad/main/Story%20-%201%20%3A%20Infrastructure%20Investment%20%26%20Jobs%20Act%20Funding%20Allocation/IIJA%20FUNDING%20AS%20OF%20MARCH%202023.csv", header = TRUE)
+
+#Load the "us_pop_by_state" file from Github to data frame. 
+us_pop_by_state <- read.csv("https://raw.githubusercontent.com/CUNY-SPS-Data-Science-Program/your-bio-GitHub-Vlad/main/Story%20-%201%20%3A%20Infrastructure%20Investment%20%26%20Jobs%20Act%20Funding%20Allocation/us_pop_by_state.csv", header = TRUE)
+
+#Load the "voting" file from Github to data frame. 
+us_election_2020 <- read.csv("https://raw.githubusercontent.com/CUNY-SPS-Data-Science-Program/your-bio-GitHub-Vlad/main/Story%20-%201%20%3A%20Infrastructure%20Investment%20%26%20Jobs%20Act%20Funding%20Allocation/voting.csv", header = TRUE)
+
+# In the"IUA FUNDING AS OF MARCH 2023" data frame convert all letters but the first letter of the "state" column to lowercase.
+IUA_Funding <- data.frame(str_to_title(tolower(IUA_Funding$state)),IUA_Funding$Total..Billions.)
+
+# In the "IUA FUNDING AS OF MARCH 2023" data frame rename the Total.Billions column to Dollars(Billions)
+ colnames(IUA_Funding)[2] <- "Dollars"
+ colnames(IUA_Funding)[1] <- "state"
+
+ 
+ # Extracting only the "state" and "population" columns from the "us_pop_by_state" data frame
+ us_pop_by_state <- data.frame(us_pop_by_state$state,us_pop_by_state$X2020_census)
+
+ colnames(us_pop_by_state)[2] <- "population"
+ colnames(us_pop_by_state)[1] <- "state"
+ 
+ 
+ #Extracting the "state","trump_vote" and biden_vote" columns from the us_election_2020  data frame
+ us_election_2020 <-data.frame(us_election_2020$state,us_election_2020$trump_vote,us_election_2020$biden_vote)
+ colnames(us_election_2020)[1] <- "state"
+ colnames(us_election_2020)[2] <- "trump_vote"
+ colnames(us_election_2020)[3] <- "biden_vote"
+```
+
+Join all three data frames into one for analysis purposes
+
+```{r}
+#join the three data frames into one on the "state" field
+library (tidyverse)
+combined_df = list(IUA_Funding,us_pop_by_state,us_election_2020) 
+combined_df <- combined_df %>% reduce(inner_join, by='state')
+```
+
+To answer the first question: "Is the allocation equitable based on the population of each of the States and Territories, or is bias apparent?", I will construct a scatter plot which will map the state population vs the money allocation to identify the relationship between state population and state allocation
+
+```{r}
+
+# create a scatter plot of population vs money allocation
+library(ggplot2)
+library(scales)
+
+ggplot(combined_df,
+aes(x = population,
+y = Dollars)) +
+geom_point(color = "cornflowerblue", size =2,alpha = .8) +
+geom_smooth(method = "lm", se = FALSE) +
+labs(x = "Population(Millions)", y = "Dollars(Billions)",title = "State Population vs Money Allocation") +
+scale_y_continuous(breaks = seq(0, 20, 1), labels =label_number(accuracy = 0.2),limits = c(0, 20)) 
+scale_x_continuous(breaks = seq(0, 40, 5),limits = c(0, 40)) 
+
+```
+
+From the regression line in the scatter plot when can say that there is a direct relationship between the population of each state and the money allocated to that particular state.We know this because most points are close to the regression line. The more the population in a state the more money it was allocated. Thus, according to the scatter plot the allocation is more or less equitable and there is no apparent bias.
+
+
+
+
+To answer the second question: "Does the allocation favor the political interests of the Biden administration?", I will construct a horizontal stacked bar plot which will map number of votes won for a given population for a particular state for the Biden and Trump administration respectively. Since from question 1, we know that the bigger state got more funding (more or less), if Biden were to win most of the states the allocation would benefit his administration. Thus, we need to compute per ca-pita of: number of votes/population for that state and map it for each state for both Trump and Biden.
+
+```{r}
+
+#First I will reshape the data to prepare it for Analysis
+combined_df_long <- gather(combined_df, candidate, number_of_votes, trump_vote,biden_vote,factor_key=TRUE)
+
+
+#calculate and add the "per capita" column to the data frame. The column is calculated as: number_of_votes/population
+combined_df_long <-combined_df_long %>% 
+  mutate(per_capita = number_of_votes/population)
+
+# create a grouped horizontal bar plot of per capita allocation per state
+
+ggplot(combined_df_long, aes(x = state, y = per_capita, fill = candidate))+  coord_flip() +
+  geom_bar(stat = "identity",width=0.7, position=position_dodge(width=0.4)) + 
+labs(y = "Per Capita (Number of Votes/Population)", x = "State" ,title = "State Vote Per Capita") 
+
+```
+
+From the graph above we can tell that the allocation will in fact favor the Biden administration. This is so because Biden won most of the states, including some big ones like California and Pennsylvania and got more per capita. Since, from problem 1 we saw that for the most part the bigger states got more allocation and Biden won the election including some of the big states,his administration will benefit from the allocation.
+
